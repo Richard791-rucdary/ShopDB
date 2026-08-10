@@ -150,7 +150,7 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection! Please try again."})
 		return
 	}
-	token := makeToken(vex.User)
+	token := makeToken(vex.User, read)
 	err = collection.FindOne(read.Context(), bson.M{"useName": vex.User}).Decode(&vexe)
 	if err == nil {
 		write.WriteHeader(http.StatusExpectationFailed)
@@ -223,7 +223,7 @@ func logIn(write http.ResponseWriter, read *http.Request) {
 	}
 	write.Header().Set("Content-Type", "application/json")
 	write.WriteHeader(http.StatusOK)
-	token := makeToken(vex.User)
+	token := makeToken(vex.User, read)
 	err = json.NewEncoder(write).Encode(map[string]string{"token": token})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -340,7 +340,7 @@ func delete(write http.ResponseWriter, read *http.Request) {
 	id, erk := strconv.ParseInt(strings.Split(vals, "_")[0], 10, 64)
 	token := strings.Split(vals, "_")[1]
 	name := strings.Split(vals, "_")[2]
-	key := makeToken(name)
+	key := makeToken(name, read)
 	if erk != nil {
 		write.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid Data! Input proper data."})
@@ -417,11 +417,11 @@ func save(write http.ResponseWriter, read *http.Request) {
 	}
 }
 
-func makeToken(val string) string {
+func makeToken(val string, read *http.Request) string {
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-`"
 	var cont string
 	var pes Cust
-	err := collection.FindOne(context.TODO(), bson.M{"useName": val}).Decode(&pes)
+	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
 	if err != nil {
 		return "Invalid"
 	}
@@ -432,7 +432,7 @@ func makeToken(val string) string {
 		idx := rand.Intn(len(words))
 		cont += string(words[idx])
 	}
-	_, err = collection.UpdateOne(context.TODO(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
+	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
 	if err != nil {
 		return "Error making token"
 	}
