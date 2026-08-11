@@ -439,7 +439,7 @@ func makeToken(val string, read *http.Request) string {
 }
 func main() {
 	var client *mongo.Client
-	client, err := mongo.Connect(options.Client().ApplyURI("mongodb+srv://Richard:dig3fast70mph@shopdb1.roi8y9r.mongodb.net/shopdb?appName=ShopDB1"))
+	client, err := mongo.Connect(options.Client().ApplyURI(os.Getenv("MONGO")))
 	if err != nil {
 		log.Fatal(err)
 	}
