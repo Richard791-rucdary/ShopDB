@@ -106,7 +106,7 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 	write.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(write).Encode(vale)
+	err = json.NewEncoder(write).Encode(map[string][]rec{"message": vale})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection! Please try again."})
