@@ -44,26 +44,33 @@ type Cust struct {
 func loadData(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
 	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	write.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	if read.Method == "OPTIONS" {
 		write.WriteHeader(http.StatusOK)
 		return
 	}
-	if read.Method != "GET" {
+	if read.Method != "POST" {
 		write.WriteHeader(http.StatusMethodNotAllowed)
 		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
 		return
 	}
+	type cus struct {
+		Name  string `json:"name"`
+		Token string `json:"token"`
+	}
+	defer read.Body.Close()
 	var vale []rec
 	var vales Cust
-	namee := read.URL.Query().Get("name")
-	if namee == "" {
-		write.WriteHeader(http.StatusBadRequest)
+	var res cus
+	err := json.NewDecoder(read.Body).Decode(&res)
+	if err != nil {
+		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid values!"})
 		return
 	}
-	name := strings.Split(namee, "_")[0]
-	token := strings.Split(namee, "_")[1]
-	err := collection.FindOne(read.Context(), bson.M{"useName": name}).Decode(&vales)
+	defer read.Body.Close()
+	name := res.Name
+	token := res.Token
+	err = collection.FindOne(read.Context(), bson.M{"useName": name}).Decode(&vales)
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Your internet is disconnected! Please Try again"})
