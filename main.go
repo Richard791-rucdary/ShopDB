@@ -25,7 +25,7 @@ type rec struct {
 	UseName string        `json:"useName" bson:"useName"`
 	Name    string        `json:"name" bson:"name"`
 	Date    string        `json:"date" bson:"date"`
-	ActDate int64         `json:"actDate" bson:"actDate"`
+	ActDate int           `json:"actDate" bson:"actDate"`
 	Record  string        `json:"record" bson:"record"`
 	Owed    float64       `json:"owed" bson:"owed"`
 }
@@ -337,7 +337,7 @@ func delete(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid Data! Input proper data."})
 		return
 	}
-	id, erk := strconv.ParseInt(strings.Split(vals, "_")[0], 10, 64)
+	id, erk := strconv.ParseInt(strings.Split(vals, "_")[0], 10, 10)
 	token := strings.Split(vals, "_")[1]
 	name := strings.Split(vals, "_")[2]
 	key := makeToken(name, read)
@@ -418,7 +418,7 @@ func save(write http.ResponseWriter, read *http.Request) {
 }
 
 func makeToken(val string, read *http.Request) string {
-	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-`"
+	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var cont string
 	var pes Cust
 	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
