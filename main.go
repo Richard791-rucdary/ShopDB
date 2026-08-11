@@ -84,14 +84,12 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 	if valeo >= int64(vales.IsPaid) {
 		write.WriteHeader(http.StatusLocked)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Your package has expired! Buy another package to have access to our services."})
-
 		return
 	}
 	cursor, err := coll.Find(read.Context(), bson.M{"useName": name})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Error connecting to Database! Please try again."})
-
 		return
 	}
 	defer cursor.Close(read.Context())
@@ -101,15 +99,16 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 		vale = append(vale, est)
 	}
 	if err = cursor.Err(); err != nil {
+		write.Header().Set("Content-Type", "application/json")
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Error retrieving data! Please try again."})
 		return
 	}
+
 	write.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(write).Encode(map[string][]rec{"message": vale})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection! Please try again."})
 		return
 	}
 }
@@ -440,7 +439,7 @@ func makeToken(val string, read *http.Request) string {
 }
 func main() {
 	var client *mongo.Client
-	client, err := mongo.Connect(options.Client().ApplyURI(os.Getenv("MONGO")))
+	client, err := mongo.Connect(options.Client().ApplyURI("mongodb+srv://Richard:dig3fast70mph@shopdb1.roi8y9r.mongodb.net/shopdb?appName=ShopDB1"))
 	if err != nil {
 		log.Fatal(err)
 	}
