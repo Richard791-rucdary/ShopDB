@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -337,27 +335,33 @@ func delete(write http.ResponseWriter, read *http.Request) {
 	}
 	defer read.Body.Close()
 
-	vals := read.URL.Query().Get("val")
-	if vals == "" {
+	type reco struct {
+		ID    string `json:"id"`
+		Token string `json:"token"`
+		Name  string `json:"name"`
+	}
+	var ort reco
+	err := json.NewDecoder(read.Body).Decode(&ort)
+	if err != nil {
 		write.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid Data! Input proper data."})
 		return
 	}
-	id, erk := strconv.ParseInt(strings.Split(vals, "_")[0], 10, 10)
-	token := strings.Split(vals, "_")[1]
-	name := strings.Split(vals, "_")[2]
-	key := makeToken(name, read)
-	if erk != nil {
-		write.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid Data! Input proper data."})
-		return
-	}
-	if key != token {
+
+	key := makeToken(ort.Name, read)
+
+	if key != ort.Token {
 		write.WriteHeader(http.StatusConflict)
 		json.NewEncoder(write).Encode(map[string]string{"err": "We were unable to authorise you. Please try again"})
 		return
 	}
-	_, err := coll.DeleteOne(read.Context(), bson.M{"actDate": id})
+	id, err := bson.ObjectIDFromHex(ort.ID)
+	if err != nil {
+		write.WriteHeader(http.StatusConflict)
+		json.NewEncoder(write).Encode(map[string]string{"err": "We were unable to authorise your customer ID! please try again"})
+		return
+	}
+	_, err = coll.DeleteOne(read.Context(), bson.M{"_id": id})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured! Please try again."})
