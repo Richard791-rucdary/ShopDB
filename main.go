@@ -23,7 +23,7 @@ type rec struct {
 	UseName string        `json:"useName" bson:"useName"`
 	Name    string        `json:"name" bson:"name"`
 	Date    string        `json:"date" bson:"date"`
-	ActDate int           `json:"actDate" bson:"actDate"`
+	ActDate string        `json:"actDate" bson:"actDate"`
 	Record  string        `json:"record" bson:"record"`
 	Owed    float64       `json:"owed" bson:"owed"`
 }
