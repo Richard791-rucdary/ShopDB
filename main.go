@@ -84,13 +84,7 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "Unable to authorise user. Please try again."})
 		return
 	}
-	date := time.Now().UnixMilli()
-	valeo := (int64(date) - int64(vales.PayDate)) / 86400000
-	if valeo >= int64(vales.IsPaid) {
-		write.WriteHeader(http.StatusLocked)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Your package has expired! Buy another package to have access to our services."})
-		return
-	}
+
 	cursor, err := coll.Find(read.Context(), bson.M{"useName": name})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
