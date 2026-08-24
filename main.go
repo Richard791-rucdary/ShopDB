@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -26,6 +26,7 @@ type rec struct {
 	ActDate string        `json:"actDate" bson:"actDate"`
 	Record  string        `json:"record" bson:"record"`
 	Owed    float64       `json:"owed" bson:"owed"`
+	Time    string        `json:"time" bson:"time"`
 }
 
 type Cust struct {
@@ -222,7 +223,7 @@ func logIn(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Content-Type", "application/json")
 	write.WriteHeader(http.StatusOK)
 	token := makeToken(vex.User, read)
-	err = json.NewEncoder(write).Encode(map[string]string{"token": token})
+	err = json.NewEncoder(write).Encode(map[string]string{"token": token, "name": vexer.RealName})
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured! Please try again."})
@@ -423,7 +424,6 @@ func save(write http.ResponseWriter, read *http.Request) {
 
 func makeToken(val string, read *http.Request) string {
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
-	var cont string
 	var pes Cust
 	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
 	if err != nil {
@@ -432,15 +432,13 @@ func makeToken(val string, read *http.Request) string {
 	if int64(time.Now().UnixMilli()) < pes.Exp {
 		return pes.Token
 	}
-	for i := 0; i < 20; i++ {
-		idx := rand.Intn(len(words))
-		cont += string(words[idx])
-	}
+	cont := make([]byte, 20)
+	rand.Read(cont)
 	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
 	if err != nil {
 		return "Error making token"
 	}
-	return cont
+	return string(cont)
 }
 func main() {
 	var client *mongo.Client
@@ -448,7 +446,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	rand.Seed(time.Now().UnixNano())
 	defer client.Disconnect(context.TODO())
 
 	err = client.Ping(context.TODO(), nil)
@@ -457,6 +454,13 @@ func main() {
 	}
 	collection = client.Database("shop").Collection("records")
 	coll = client.Database("shop-records").Collection("persons")
+
+	shopIndex := mongo.IndexModel{
+		Keys:    bson.M{"useName": 1},
+		Options: options.Index().SetUnique(true),
+	}
+	collection.Indexes().CreateOne(context.TODO(), shopIndex)
+	coll.Indexes().CreateOne(context.TODO(), shopIndex)
 
 	http.HandleFunc("/signup", signUp)
 	http.HandleFunc("/login", logIn)
