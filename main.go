@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -423,7 +423,6 @@ func save(write http.ResponseWriter, read *http.Request) {
 }
 
 func makeToken(val string, read *http.Request) string {
-	rand.Seed(time.Now().UnixNano())
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var pes Cust
 	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
@@ -433,12 +432,9 @@ func makeToken(val string, read *http.Request) string {
 	if int64(time.Now().UnixMilli()) < pes.Exp {
 		return pes.Token
 	}
-	var cont string
-	for i := 0; i < 20; i++ {
-		cont += string(words[rand.Intn(len(words))])
-	}
-
-	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
+	cont := make([]byte, 20)
+	rand.Read(cont)
+	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": string(cont), "exp": int64(time.Now().UnixMilli() + 86400000)}})
 	if err != nil {
 		return "Error making token"
 	}
