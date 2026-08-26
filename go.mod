@@ -4,6 +4,8 @@ go 1.26.5
 
 require go.mongodb.org/mongo-driver/v2 v2.8.0
 
+require github.com/resend/resend-go/v2 v2.28.0 // indirect
+
 require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
