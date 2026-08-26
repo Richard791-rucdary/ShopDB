@@ -705,6 +705,7 @@ func main() {
 	http.HandleFunc("/save", save)
 	http.HandleFunc("/register", regPes)
 	http.HandleFunc("/del", delete)
+	http.HandleFunc("/conf", confOTP)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
