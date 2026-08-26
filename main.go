@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/big"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -653,6 +654,7 @@ func genOTP(val string, name string, pass string) string {
 }
 
 func makeToken(val string, read *http.Request) string {
+	rand.Seed(time.Now().UnixNano())
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var pes Cust
 	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
@@ -665,8 +667,10 @@ func makeToken(val string, read *http.Request) string {
 		return pes.Token
 	}
 
-	cont := make([]byte, 20)
-	rand.Read(cont)
+	var cont string
+	for i := 0; i < 20; i++ {
+		cont += string(words[rand.Intn(len(words))])
+	}
 	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": string(cont), "exp": int64(time.Now().UnixMilli() + 86400000)}})
 
 	if err != nil {
