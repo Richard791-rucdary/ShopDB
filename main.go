@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"log"
-	"math/big"
 	"math/rand"
 	"net/http"
 	"os"
@@ -605,14 +603,9 @@ func genOTP(val string, name string, pass string) string {
 	var otp string
 	client := resend.NewClient(os.Getenv("RESEND"))
 
-	n, err := rand.Int(rand.Reader, big.NewInt(900000))
-
-	if err != nil {
-		return "failed to generate OTP"
+	for i := 0; i < 6; i++ {
+		otp += string(rand.Intn(9))
 	}
-
-	otp = string(int(n.Int64() + 100000))
-
 	type userp struct {
 		User  string `bson:"user"`
 		OTP   string `bson:"otp"`
@@ -631,7 +624,7 @@ func genOTP(val string, name string, pass string) string {
 		Tries: 0,
 	}
 
-	_, err = otpCon.InsertOne(context.TODO(), rep)
+	_, err := otpCon.InsertOne(context.TODO(), rep)
 
 	if err != nil {
 		return "Failure Generating Response."
