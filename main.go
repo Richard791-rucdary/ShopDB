@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"log"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"os"
 	"time"
@@ -184,7 +185,7 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	van := genOTP(vex.User, vex.Name, vex.Password)
+	van := genOTP(vex.User, vex.Name, vex.Password, read)
 
 	write.WriteHeader(http.StatusOK)
 	json.NewEncoder(write).Encode(map[string]string{"message": van})
@@ -253,7 +254,7 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 
 	if vex.Tries >= 5 {
 		write.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(write).Encode(map[string]string{"err": "You can't try again. Contact customer care for support."})
+		json.NewEncoder(write).Encode(map[string]string{"err": "Too many invalid tries. Come back later."})
 		return
 	}
 
@@ -599,13 +600,8 @@ func save(write http.ResponseWriter, read *http.Request) {
 	}
 }
 
-func genOTP(val string, name string, pass string) string {
+func genOTP(val string, name string, pass string, read *http.Request) string {
 	var otp string
-	client := resend.NewClient(os.Getenv("RESEND"))
-
-	for i := 0; i < 6; i++ {
-		otp += string(rand.Intn(9))
-	}
 	type userp struct {
 		User  string `bson:"user"`
 		OTP   string `bson:"otp"`
@@ -613,6 +609,31 @@ func genOTP(val string, name string, pass string) string {
 		Name  string `bson:"name"`
 		Exp   int64  `bson:"exp"`
 		Tries int    `bson:"tries"`
+	}
+	client := resend.NewClient(os.Getenv("RESEND"))
+	const numb = "0123456789"
+	for i := 0; i < 6; i++ {
+		mad := big.NewInt(9)
+		n, err := rand.Int(rand.Reader, mad)
+		if err != nil {
+			i--
+		}
+		ert := int(n.Int64())
+		otp += string(numb[ert])
+	}
+	var check userp
+	err := otpCon.FindOne(read.Context(), bson.M{"user": val}).Decode(&check)
+	if err == nil && check.Exp < time.Now().UnixMilli() {
+		return "success"
+	}
+	if err != nil {
+		return "Error"
+	}
+	if check.Exp >= time.Now().UnixMilli() {
+		_, err := otpCon.DeleteOne(read.Context(), bson.M{"user": check.Name})
+		if err != nil {
+			return "Error"
+		}
 	}
 
 	rep := userp{
@@ -624,7 +645,7 @@ func genOTP(val string, name string, pass string) string {
 		Tries: 0,
 	}
 
-	_, err := otpCon.InsertOne(context.TODO(), rep)
+	_, err = otpCon.InsertOne(read.Context(), rep)
 
 	if err != nil {
 		return "Failure Generating Response."
@@ -634,7 +655,7 @@ func genOTP(val string, name string, pass string) string {
 		From:    "Jotter <onboarding@resend.dev>",
 		To:      []string{val},
 		Subject: "User OTP",
-		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b>" + otp + "</b>. Use It to create your user account.</p>",
+		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b style='background: rgb(177, 6, 6);'>" + otp + "</b>. Use It to create your Jotter account.</p>",
 	}
 
 	_, err = client.Emails.Send(params)
@@ -647,7 +668,6 @@ func genOTP(val string, name string, pass string) string {
 }
 
 func makeToken(val string, read *http.Request) string {
-	rand.Seed(time.Now().UnixNano())
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var pes Cust
 	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
@@ -662,15 +682,21 @@ func makeToken(val string, read *http.Request) string {
 
 	var cont string
 	for i := 0; i < 20; i++ {
-		cont += string(words[rand.Intn(len(words))])
+		mad := big.NewInt(61)
+		n, err := rand.Int(rand.Reader, mad)
+		if err != nil {
+			i--
+		}
+		ert := int(n.Int64())
+		cont += string(words[ert])
 	}
-	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": string(cont), "exp": int64(time.Now().UnixMilli() + 86400000)}})
+	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
 
 	if err != nil {
 		return "Error making token"
 	}
 
-	return string(cont)
+	return cont
 }
 
 // The main function
