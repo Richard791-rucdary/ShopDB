@@ -188,12 +188,7 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 	van := genOTP(vex.User, vex.Name, vex.Password, read)
 
 	write.WriteHeader(http.StatusOK)
-	json.NewEncoder(write).Encode(map[string]string{"message": van})
-	if err == nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection. Please check your internet connection."})
-		return
-	}
+	err = json.NewEncoder(write).Encode(map[string]string{"message": van})
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
