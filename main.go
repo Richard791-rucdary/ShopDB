@@ -239,7 +239,7 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 
 	defer read.Body.Close()
 
-	err = otpCon.FindOne(read.Context(), bson.M{"email": vexer.OTP}).Decode(&vex)
+	err = otpCon.FindOne(read.Context(), bson.M{"email": vexer.Email}).Decode(&vex)
 
 	if err != nil {
 		write.WriteHeader(http.StatusBadRequest)
