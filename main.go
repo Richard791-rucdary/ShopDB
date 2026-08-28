@@ -201,6 +201,7 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
 	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	userOTP := []string{"4", "3", "2", "1", "0"}
 
 	if read.Method == "OPTIONS" {
 		write.WriteHeader(http.StatusOK)
@@ -256,7 +257,7 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 	if vexer.OTP != vex.OTP {
 		write.WriteHeader(http.StatusUnauthorized)
 		_, _ = otpCon.UpdateOne(read.Context(), bson.M{"email": vex.User}, bson.M{"$set": bson.M{"tries": vex.Tries + 1}})
-		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid OTP. you have " + string(5-vex.Tries+1) + " tries left."})
+		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid OTP. you have " + userOTP[vex.Tries] + " tries left."})
 		return
 	}
 
@@ -625,7 +626,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 	if check.Exp >= time.Now().UnixMilli() {
 		_, err := otpCon.DeleteOne(read.Context(), bson.M{"user": check.Name})
 		if err != nil {
-			return "Error generating OTP"
+			return "Error generating OTP. Please try again."
 		}
 
 	}
@@ -641,7 +642,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 	_, err = otpCon.InsertOne(read.Context(), rep)
 
 	if err != nil {
-		return "Failure Generating Response."
+		return "Bad internet connection. Please check your internet."
 	}
 
 	params := &resend.SendEmailRequest{
@@ -655,7 +656,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 
 	if err != nil {
 		_, _ = otpCon.DeleteOne(read.Context(), bson.M{"user": val})
-		return "failed to send"
+		return "Failed to send OTP. please check your connection and try again."
 	}
 
 	return "success"
