@@ -656,7 +656,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 
 	if err != nil {
 		_, _ = otpCon.DeleteOne(read.Context(), bson.M{"user": val})
-		return "Failed to send OTP. please check your connection and try again."
+		return "Failed to send OTP. please check your connection or input a valid email."
 	}
 
 	return "success"
