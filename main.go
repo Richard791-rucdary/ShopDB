@@ -621,14 +621,13 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 	if err == nil && check.Exp < time.Now().UnixMilli() {
 		return "success"
 	}
-	if err != nil {
-		return "Error"
-	}
+
 	if check.Exp >= time.Now().UnixMilli() {
 		_, err := otpCon.DeleteOne(read.Context(), bson.M{"user": check.Name})
 		if err != nil {
-			return "Error"
+			return "Error generating OTP"
 		}
+
 	}
 
 	rep := userp{
@@ -639,7 +638,6 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 		Exp:   time.Now().UnixMilli() + 86400000,
 		Tries: 0,
 	}
-
 	_, err = otpCon.InsertOne(read.Context(), rep)
 
 	if err != nil {
@@ -647,7 +645,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 	}
 
 	params := &resend.SendEmailRequest{
-		From:    "Jotter <onboarding@resend.dev>",
+		From:    "The Jotter Team <onboarding@resend.dev>",
 		To:      []string{val},
 		Subject: "User OTP",
 		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b style='background: rgb(177, 6, 6);'>" + otp + "</b>. Use It to create your Jotter account.</p>",
@@ -656,6 +654,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 	_, err = client.Emails.Send(params)
 
 	if err != nil {
+		_, _ = otpCon.DeleteOne(read.Context(), bson.M{"user": val})
 		return "failed to send"
 	}
 
