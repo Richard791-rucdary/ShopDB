@@ -7,10 +7,10 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"net/smtp"
 	"os"
 	"time"
 
-	"github.com/resend/resend-go/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -525,7 +525,7 @@ func delete(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 	write.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success"})
+	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success deleting data."})
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -587,7 +587,7 @@ func save(write http.ResponseWriter, read *http.Request) {
 	}
 
 	write.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success deleting data."})
+	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success"})
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -606,7 +606,6 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 		Exp   int64  `bson:"exp"`
 		Tries int    `bson:"tries"`
 	}
-	client := resend.NewClient(os.Getenv("RESEND"))
 	const numb = "0123456789"
 	for i := 0; i < 6; i++ {
 		mad := big.NewInt(9)
@@ -645,20 +644,21 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 		return "Bad internet connection. Please check your internet."
 	}
 
-	params := &resend.SendEmailRequest{
-		From:    "The Jotter Team <onboarding@resend.dev>",
-		To:      []string{val},
-		Subject: "User OTP",
-		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b style='color: rgb(177, 6, 6);'>" + otp + "</b>. Use It to create your Jotter account.</p>",
-	}
-
-	_, err = client.Emails.Send(params)
-
+	from := "badgcheets@gmail.com"
+	to := []string{val}
+	host := "://gmail.com"
+	port := "587"
+	subject := "User OTP code.\n"
+	writer := "MIME-version: 1.0;\nContent-Type: text/html;\ncharset:\"UTF-8\"\n\n"
+	body := `<h2>Hello User!</h2><p>Your OTP is <b style="color:color: rgb(177, 6, 6);">` + otp + "</b>. Use it to create your Jotter account.</p>"
+	whole := []byte(subject + writer + body)
+	password := os.Getenv("PASS")
+	auth := smtp.PlainAuth("", from, password, host)
+	err = smtp.SendMail(host+":"+port, auth, from, to, whole)
 	if err != nil {
 		_, _ = otpCon.DeleteOne(read.Context(), bson.M{"user": val})
 		return "Failed to send OTP. please check your connection or input a valid email."
 	}
-
 	return "success"
 }
 
