@@ -239,7 +239,7 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 
 	defer read.Body.Close()
 
-	err = otpCon.FindOne(read.Context(), bson.M{"email": vexer.Email}).Decode(&vex)
+	err = otpCon.FindOne(read.Context(), bson.M{"user": vexer.Email}).Decode(&vex)
 
 	if err != nil {
 		write.WriteHeader(http.StatusBadRequest)
@@ -648,7 +648,7 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 		From:    "The Jotter Team <onboarding@resend.dev>",
 		To:      []string{val},
 		Subject: "User OTP",
-		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b style='background: rgb(177, 6, 6);'>" + otp + "</b>. Use It to create your Jotter account.</p>",
+		Html:    "<h2>Hello user!</h2><p>Your User OTP is <b style='color: rgb(177, 6, 6);'>" + otp + "</b>. Use It to create your Jotter account.</p>",
 	}
 
 	_, err = client.Emails.Send(params)
