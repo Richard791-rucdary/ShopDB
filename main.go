@@ -646,9 +646,9 @@ func genOTP(val string, name string, pass string, read *http.Request) string {
 
 	from := "badgcheets@gmail.com"
 	to := []string{val}
-	host := "://gmail.com"
+	host := "smtp.gmail.com"
 	port := "587"
-	subject := "User OTP code.\n"
+	subject := "Subject: User OTP code.\n"
 	writer := "MIME-version: 1.0;\nContent-Type: text/html;\ncharset:\"UTF-8\"\n\n"
 	body := `<h2>Hello User!</h2><p>Your OTP is <b style="color:color: rgb(177, 6, 6);">` + otp + "</b>. Use it to create your Jotter account.</p>"
 	whole := []byte(subject + writer + body)
