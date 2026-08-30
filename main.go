@@ -496,7 +496,7 @@ func save(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "Record is too long!"})
 		return
 	}
-	if len(sav.Name) != 30 {
+	if len(sav.Name) > 30 {
 		write.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Customer name is too long!"})
 		return
