@@ -7,7 +7,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"net/smtp"
 	"os"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 
 var collection *mongo.Collection
 var coll *mongo.Collection
-var otpCon *mongo.Collection
 
 type rec struct {
 	ID      bson.ObjectID `json:"id" bson:"_id,omitempty"`
@@ -170,10 +168,21 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid data! Please input proper data."})
 		return
 	}
+	if len(vex.User) != 7 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Input a valid username"})
+		return
+	}
 
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection! Please try again."})
+	if len(vex.Name) > 30 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Name is too long! please reduce"})
+		return
+	}
+
+	if len(vex.Password) > 20 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Please input a short password u can remember."})
 		return
 	}
 
@@ -181,96 +190,17 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 
 	if err == nil {
 		write.WriteHeader(http.StatusExpectationFailed)
-		json.NewEncoder(write).Encode(map[string]string{"err": "The Inputted e-mail already exists. If trying to login, click login instead."})
-		return
-	}
-
-	van := genOTP(vex.User, vex.Name, vex.Password, read)
-
-	write.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(write).Encode(map[string]string{"message": van})
-
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Poor Internet connection. Please check your internet."})
-	}
-}
-
-// Confirm OTP for user Sign-Up
-func confOTP(write http.ResponseWriter, read *http.Request) {
-	write.Header().Set("Access-Control-Allow-Origin", "*")
-	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	userOTP := []string{"4", "3", "2", "1", "0"}
-
-	if read.Method == "OPTIONS" {
-		write.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if read.Method != "POST" {
-		write.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
-		return
-	}
-
-	type userp struct {
-		User  string    `bson:"user"`
-		OTP   string    `bson:"otp"`
-		Pass  string    `bson:"pass"`
-		Name  string    `bson:"name"`
-		Exp   time.Time `bson:"exp"`
-		Tries int       `bson:"tries"`
-	}
-
-	type OTP struct {
-		Email string `json:"email"`
-		OTP   string `json:"otp"`
-	}
-	var vex userp
-	var vexer OTP
-
-	err := json.NewDecoder(read.Body).Decode(&vexer)
-
-	if err != nil {
-		write.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid JSON. Please input valid JSON."})
-		return
-	}
-
-	defer read.Body.Close()
-
-	err = otpCon.FindOne(read.Context(), bson.M{"user": vexer.Email}).Decode(&vex)
-
-	if err != nil {
-		write.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured. Please check ypur internet or input a valid email."})
-		return
-	}
-
-	if vex.Tries >= 5 {
-		write.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Too many invalid tries. Come back later."})
-		return
-	}
-
-	if vexer.OTP != vex.OTP {
-		write.WriteHeader(http.StatusUnauthorized)
-		_, _ = otpCon.UpdateOne(read.Context(), bson.M{"email": vex.User}, bson.M{"$set": bson.M{"tries": vex.Tries + 1}})
-		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid OTP. you have " + userOTP[vex.Tries] + " tries left."})
-		return
-	}
-
-	vim, err := bcrypt.GenerateFromPassword([]byte(vex.Pass), 12)
-
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet connection. Connect to stronger internet!"})
+		json.NewEncoder(write).Encode(map[string]string{"err": "The Inputted username already exists. If trying to login, click login instead."})
 		return
 	}
 
 	make := makeToken(vex.User, read)
-
+	vim, err := bcrypt.GenerateFromPassword([]byte(vex.Password), 12)
+	if err != nil {
+		write.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Poor Internet connection. Please connect to better internet!"})
+		return
+	}
 	saves := Cust{
 		UseName:  vex.User,
 		RealName: vex.Name,
@@ -294,14 +224,13 @@ func confOTP(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured. Please reload."})
 		return
 	}
-	write.Header().Set("Content-Type", "application/json")
 
-	err = json.NewEncoder(write).Encode(map[string]string{"message": "OTP confirmation was a success"})
+	write.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success"})
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured. Please try again"})
-		return
+		json.NewEncoder(write).Encode(map[string]string{"err": "Poor Internet connection. Please check your internet."})
 	}
 }
 
@@ -562,6 +491,23 @@ func save(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
+	if len(sav.Record) > 1000 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Record is too long!"})
+		return
+	}
+	if len(sav.Name) != 30 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Customer name is too long!"})
+		return
+	}
+
+	if sav.Owed > 500000000000 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Amount is too huge"})
+		return
+	}
+
 	token := read.URL.Query().Get("token")
 
 	if token == "" {
@@ -596,72 +542,7 @@ func save(write http.ResponseWriter, read *http.Request) {
 	}
 }
 
-func genOTP(val string, name string, pass string, read *http.Request) string {
-	var otp string
-	type userp struct {
-		User  string `bson:"user"`
-		OTP   string `bson:"otp"`
-		Pass  string `bson:"pass"`
-		Name  string `bson:"name"`
-		Exp   int64  `bson:"exp"`
-		Tries int    `bson:"tries"`
-	}
-	const numb = "0123456789"
-	for i := 0; i < 6; i++ {
-		mad := big.NewInt(9)
-		n, err := rand.Int(rand.Reader, mad)
-		if err != nil {
-			i--
-		}
-		ert := int(n.Int64())
-		otp += string(numb[ert])
-	}
-	var check userp
-	err := otpCon.FindOne(read.Context(), bson.M{"user": val}).Decode(&check)
-	if err == nil && check.Exp < time.Now().UnixMilli() {
-		return "success"
-	}
-
-	if check.Exp >= time.Now().UnixMilli() {
-		_, err := otpCon.DeleteOne(read.Context(), bson.M{"user": check.Name})
-		if err != nil {
-			return "Error generating OTP. Please try again."
-		}
-
-	}
-
-	rep := userp{
-		User:  val,
-		OTP:   otp,
-		Pass:  pass,
-		Name:  name,
-		Exp:   time.Now().UnixMilli() + 86400000,
-		Tries: 0,
-	}
-	_, err = otpCon.InsertOne(read.Context(), rep)
-
-	if err != nil {
-		return "Bad internet connection. Please check your internet."
-	}
-
-	from := "badgcheets@gmail.com"
-	to := []string{val}
-	host := "smtp.gmail.com"
-	port := "587"
-	subject := "Subject: User OTP code.\n"
-	writer := "MIME-version: 1.0;\nContent-Type: text/html;\ncharset:\"UTF-8\"\n\n"
-	body := `<h2>Hello User!</h2><p>Your OTP is <b style="color:color: rgb(177, 6, 6);">` + otp + "</b>. Use it to create your Jotter account.</p>"
-	whole := []byte(subject + writer + body)
-	password := os.Getenv("PASS")
-	auth := smtp.PlainAuth("", from, password, host)
-	err = smtp.SendMail(host+":"+port, auth, from, to, whole)
-	if err != nil {
-		_, _ = otpCon.DeleteOne(read.Context(), bson.M{"user": val})
-		return "Failed to send OTP. please check your connection or input a valid email."
-	}
-	return "success"
-}
-
+// Make token part
 func makeToken(val string, read *http.Request) string {
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var pes Cust
@@ -694,6 +575,75 @@ func makeToken(val string, read *http.Request) string {
 	return cont
 }
 
+func updateMsg(write http.ResponseWriter, read *http.Request) {
+	write.Header().Set("Access-Control-Allow-Origin", "*")
+	write.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if read.Method == "OPTIONS" {
+		write.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if read.Method != "POST" {
+		write.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
+		return
+	}
+	token := read.Header.Get("Authorization")
+	type user struct {
+		Pes   string `json:"pes"`
+		ID    string `json:"id"`
+		Text  string `json:"text"`
+		Total int    `json:"total"`
+	}
+	var vex user
+	err := json.NewDecoder(read.Body).Decode(&vex)
+	if err != nil {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid JSON. Input proper JSON!"})
+		return
+	}
+
+	if token == "" {
+		write.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Unable to authorise user. Please try again."})
+		return
+	}
+
+	compareToken := makeToken(vex.Pes, read)
+	if token != compareToken {
+		write.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Unable to authorise user. Please try again."})
+		return
+	}
+
+	act, err := bson.ObjectIDFromHex(vex.ID)
+	if err != nil {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid record ID."})
+		return
+	}
+	if len(vex.Text) > 1000 || len(vex.Text) == 0 {
+		write.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Record is too long or too short!"})
+		return
+	}
+
+	_, err = coll.UpdateOne(read.Context(), bson.M{"id": act}, bson.M{"$set": bson.M{"record": vex.Text, "owed": vex.Total}})
+	if err != nil {
+		write.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet Connection. Connect to better internet!"})
+		return
+	}
+	err = json.NewEncoder(write).Encode(map[string]string{"message": "Updating record was a success!"})
+	if err != nil {
+		write.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
+		return
+	}
+}
+
 // The main function
 func main() {
 	var client *mongo.Client
@@ -709,15 +659,19 @@ func main() {
 	}
 	collection = client.Database("shop").Collection("records")
 	coll = client.Database("shop-records").Collection("persons")
-	otpCon = client.Database("OTP").Collection("vars")
 
 	shopIndex := mongo.IndexModel{
 		Keys:    bson.M{"useName": 1},
 		Options: options.Index().SetUnique(true),
 	}
+	shopIndex2 := mongo.IndexModel{
+		Keys:    bson.M{"id": 1},
+		Options: options.Index().SetUnique(true),
+	}
 
 	collection.Indexes().CreateOne(context.TODO(), shopIndex)
 	coll.Indexes().CreateOne(context.TODO(), shopIndex)
+	coll.Indexes().CreateOne(context.TODO(), shopIndex2)
 
 	http.HandleFunc("/signup", signUp)
 	http.HandleFunc("/login", logIn)
@@ -726,7 +680,7 @@ func main() {
 	http.HandleFunc("/save", save)
 	http.HandleFunc("/register", regPes)
 	http.HandleFunc("/del", delete)
-	http.HandleFunc("/conf", confOTP)
+	http.HandleFunc("/upd", updateMsg)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
