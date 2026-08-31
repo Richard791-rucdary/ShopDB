@@ -46,9 +46,10 @@ type Cust struct {
 // Load user data
 func loadData(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
-	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	write.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	if read.Method == "OPTIONS" {
 		write.WriteHeader(http.StatusOK)
 		return
@@ -78,9 +79,15 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 	defer read.Body.Close()
 
 	name := res.Name
-	token := res.Token
-	compareToken := makeToken(name, read)
-	err = collection.FindOne(read.Context(), bson.M{"useName": name}).Decode(&vales)
+	token := read.Header.Get("Authorization")
+	compareToken := makeToken(name, ctx)
+	err = collection.FindOne(ctx, bson.M{"useName": name}).Decode(&vales)
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -100,7 +107,13 @@ func loadData(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	cursor, err := coll.Find(read.Context(), bson.M{"useName": name})
+	cursor, err := coll.Find(ctx, bson.M{"useName": name})
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -151,7 +164,8 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 	}
 
 	defer read.Body.Close()
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	type users struct {
 		User     string `json:"user"`
 		Name     string `json:"name"`
@@ -186,7 +200,13 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	err = collection.FindOne(read.Context(), bson.M{"useName": vex.User}).Decode(&vexe)
+	err = collection.FindOne(ctx, bson.M{"useName": vex.User}).Decode(&vexe)
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err == nil {
 		write.WriteHeader(http.StatusExpectationFailed)
@@ -194,7 +214,7 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	make := makeToken(vex.User, read)
+	make := makeToken(vex.User, ctx)
 	vim, err := bcrypt.GenerateFromPassword([]byte(vex.Password), 12)
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -211,15 +231,25 @@ func signUp(write http.ResponseWriter, read *http.Request) {
 		Exp:      int64(time.Now().UnixMilli() + 86400000),
 	}
 
-	_, err = collection.InsertOne(read.Context(), saves)
+	_, err = collection.InsertOne(ctx, saves)
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured. Please try again"})
 		return
 	}
-	vant := makeToken(vex.User, read)
-	if _, err = collection.UpdateOne(read.Context(), bson.M{"useName": vex.User}, bson.M{"$set": bson.M{"token": vant}}); err != nil {
+	vant := makeToken(vex.User, ctx)
+	if _, err = collection.UpdateOne(ctx, bson.M{"useName": vex.User}, bson.M{"$set": bson.M{"token": vant}}); err != nil {
+		if err == context.DeadlineExceeded {
+			write.WriteHeader(http.StatusRequestTimeout)
+			json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+			return
+		}
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured. Please reload."})
 		return
@@ -252,7 +282,8 @@ func logIn(write http.ResponseWriter, read *http.Request) {
 	}
 
 	defer read.Body.Close()
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	type users struct {
 		User     string `json:"user"`
 		Password string `json:"password"`
@@ -269,7 +300,13 @@ func logIn(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	err = collection.FindOne(read.Context(), bson.M{"useName": vex.User}).Decode(&vexer)
+	err = collection.FindOne(ctx, bson.M{"useName": vex.User}).Decode(&vexer)
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(404)
@@ -288,7 +325,7 @@ func logIn(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Content-Type", "application/json")
 
 	write.WriteHeader(http.StatusOK)
-	token := makeToken(vex.User, read)
+	token := makeToken(vex.User, ctx)
 
 	err = json.NewEncoder(write).Encode(map[string]string{"token": token, "name": vexer.RealName})
 
@@ -356,7 +393,8 @@ func regPes(write http.ResponseWriter, read *http.Request) {
 	}
 
 	defer read.Body.Close()
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	type reg struct {
 		User string `json:"user"`
 		Days int    `json:"days"`
@@ -374,10 +412,16 @@ func regPes(write http.ResponseWriter, read *http.Request) {
 
 	filter := bson.M{"useName": res.User}
 	update := bson.M{"$set": bson.M{"isPaid": res.Days, "payDate": int64(time.Now().UnixMilli())}}
-	result, err := collection.UpdateOne(read.Context(), filter, update)
+	result, err := collection.UpdateOne(ctx, filter, update)
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if result.MatchedCount == 0 {
-		write.WriteHeader(http.StatusConflict)
+		write.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(write).Encode(map[string]string{"err": "User does not exist!"})
 		return
 	}
@@ -399,7 +443,7 @@ func regPes(write http.ResponseWriter, read *http.Request) {
 
 func delete(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
-	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	write.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 
 	if read.Method == "OPTIONS" {
@@ -414,11 +458,11 @@ func delete(write http.ResponseWriter, read *http.Request) {
 	}
 
 	defer read.Body.Close()
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	type reco struct {
-		ID    string `json:"id"`
-		Token string `json:"token"`
-		Name  string `json:"name"`
+		ID   string `json:"id"`
+		Name string `json:"name"`
 	}
 
 	var ort reco
@@ -430,10 +474,10 @@ func delete(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	key := makeToken(ort.Name, read)
-
-	if key != ort.Token {
-		write.WriteHeader(http.StatusConflict)
+	key := makeToken(ort.Name, ctx)
+	token := read.Header.Get("Authorization")
+	if key != token {
+		write.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(write).Encode(map[string]string{"err": "We were unable to authorise you. Please try again"})
 		return
 	}
@@ -441,12 +485,18 @@ func delete(write http.ResponseWriter, read *http.Request) {
 	id, err := bson.ObjectIDFromHex(ort.ID)
 
 	if err != nil {
-		write.WriteHeader(http.StatusConflict)
+		write.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(write).Encode(map[string]string{"err": "We were unable to authorise your customer ID! please try again"})
 		return
 	}
 
-	_, err = coll.DeleteOne(read.Context(), bson.M{"_id": id})
+	_, err = coll.DeleteOne(ctx, bson.M{"_id": id})
+
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -465,7 +515,7 @@ func delete(write http.ResponseWriter, read *http.Request) {
 
 func save(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
-	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	write.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 
 	if read.Method == "OPTIONS" {
@@ -480,7 +530,8 @@ func save(write http.ResponseWriter, read *http.Request) {
 	}
 
 	defer read.Body.Close()
-
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	var sav rec
 
 	err := json.NewDecoder(read.Body).Decode(&sav)
@@ -508,7 +559,7 @@ func save(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	token := read.URL.Query().Get("token")
+	token := read.Header.Get("Authorization")
 
 	if token == "" {
 		write.WriteHeader(http.StatusUnauthorized)
@@ -518,13 +569,23 @@ func save(write http.ResponseWriter, read *http.Request) {
 
 	var vet Cust
 
-	if ert := collection.FindOne(read.Context(), bson.M{"token": token}).Decode(&vet); ert != nil {
+	if ert := collection.FindOne(ctx, bson.M{"token": token}).Decode(&vet); ert != nil {
+		if err == context.DeadlineExceeded {
+			write.WriteHeader(http.StatusRequestTimeout)
+			json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+			return
+		}
 		write.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(write).Encode(map[string]string{"err": "We were unable to authorise you! please try again."})
 		return
 	}
 
-	_, err = coll.InsertOne(read.Context(), sav)
+	_, err = coll.InsertOne(ctx, sav)
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
 
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
@@ -543,11 +604,14 @@ func save(write http.ResponseWriter, read *http.Request) {
 }
 
 // Make token part
-func makeToken(val string, read *http.Request) string {
+func makeToken(val string, ctx context.Context) string {
 	const words = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-`"
 	var pes Cust
-	err := collection.FindOne(read.Context(), bson.M{"useName": val}).Decode(&pes)
 
+	err := collection.FindOne(ctx, bson.M{"useName": val}).Decode(&pes)
+	if err == context.DeadlineExceeded {
+		return "Request timed out"
+	}
 	if err != nil {
 		return "Invalid"
 	}
@@ -566,7 +630,11 @@ func makeToken(val string, read *http.Request) string {
 		ert := int(n.Int64())
 		cont += string(words[ert])
 	}
-	_, err = collection.UpdateOne(read.Context(), bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
+	_, err = collection.UpdateOne(ctx, bson.M{"useName": val}, bson.M{"$set": bson.M{"token": cont, "exp": int64(time.Now().UnixMilli() + 86400000)}})
+
+	if err == context.DeadlineExceeded {
+		return "Request timed out."
+	}
 
 	if err != nil {
 		return "Error making token"
@@ -590,6 +658,8 @@ func updateMsg(write http.ResponseWriter, read *http.Request) {
 		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
 		return
 	}
+	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
+	defer cancel()
 	token := read.Header.Get("Authorization")
 	type user struct {
 		Pes   string `json:"pes"`
@@ -611,7 +681,7 @@ func updateMsg(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	compareToken := makeToken(vex.Pes, read)
+	compareToken := makeToken(vex.Pes, ctx)
 	if token != compareToken {
 		write.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Unable to authorise user. Please try again."})
@@ -630,7 +700,13 @@ func updateMsg(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 
-	_, err = coll.UpdateOne(read.Context(), bson.M{"id": act}, bson.M{"$set": bson.M{"record": vex.Text, "owed": vex.Total}})
+	_, err = coll.UpdateOne(ctx, bson.M{"_id": act}, bson.M{"$set": bson.M{"record": vex.Text, "owed": vex.Total}})
+	if err == context.DeadlineExceeded {
+		write.WriteHeader(http.StatusRequestTimeout)
+		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
+		return
+	}
+
 	if err != nil {
 		write.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(write).Encode(map[string]string{"err": "Poor internet Connection. Connect to better internet!"})
