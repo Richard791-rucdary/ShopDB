@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -714,6 +715,25 @@ func updateMsg(write http.ResponseWriter, read *http.Request) {
 	}
 }
 
+func welc(write http.ResponseWriter, read *http.Request) {
+	write.Header().Set("Access-Control-Allow-Origin", "*")
+	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	write.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+
+	if read.Method == "OPTIONS" {
+		write.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if read.Method != "GET" {
+		write.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
+		return
+	}
+	defer read.Body.Close()
+	fmt.Fprintln(write, "Server is online!")
+}
+
 // The main function
 func main() {
 	var client *mongo.Client
@@ -751,6 +771,7 @@ func main() {
 	http.HandleFunc("/register", regPes)
 	http.HandleFunc("/del", delete)
 	http.HandleFunc("/upd", updateMsg)
+	http.HandleFunc("/", welc)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
