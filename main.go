@@ -504,13 +504,7 @@ func delete(write http.ResponseWriter, read *http.Request) {
 		return
 	}
 	write.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success deleting data."})
-
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "An error occured! Please try again."})
-		return
-	}
+	json.NewEncoder(write).Encode(map[string]string{"message": "Success deleting data."})
 }
 
 func save(write http.ResponseWriter, read *http.Request) {
