@@ -377,71 +377,6 @@ func retPay(write http.ResponseWriter, read *http.Request) {
 	}
 }
 
-func regPes(write http.ResponseWriter, read *http.Request) {
-	write.Header().Set("Access-Control-Allow-Origin", "*")
-	write.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	write.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-
-	if read.Method == "OPTIONS" {
-		write.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if read.Method != "POST" {
-		write.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(write).Encode(map[string]string{"err": "This method is not allowed"})
-		return
-	}
-
-	defer read.Body.Close()
-	ctx, cancel := context.WithTimeout(read.Context(), 40*time.Second)
-	defer cancel()
-	type reg struct {
-		User string `json:"user"`
-		Days int    `json:"days"`
-	}
-
-	var res reg
-
-	err := json.NewDecoder(read.Body).Decode(&res)
-
-	if err != nil {
-		write.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(write).Encode(map[string]string{"err": "Invalid data! Please input proper data"})
-		return
-	}
-
-	filter := bson.M{"useName": res.User}
-	update := bson.M{"$set": bson.M{"isPaid": res.Days, "payDate": int64(time.Now().UnixMilli())}}
-	result, err := collection.UpdateOne(ctx, filter, update)
-
-	if err == context.DeadlineExceeded {
-		write.WriteHeader(http.StatusRequestTimeout)
-		json.NewEncoder(write).Encode(map[string]string{"err": "The request timed out. Please try again!"})
-		return
-	}
-
-	if result.MatchedCount == 0 {
-		write.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(write).Encode(map[string]string{"err": "User does not exist!"})
-		return
-	}
-
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "An Error occured! Please try again."})
-		return
-	}
-	write.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(write).Encode(map[string]string{"message": "Success"})
-
-	if err != nil {
-		write.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(write).Encode(map[string]string{"err": "An Error occured! Please try again."})
-		return
-	}
-}
-
 func delete(write http.ResponseWriter, read *http.Request) {
 	write.Header().Set("Access-Control-Allow-Origin", "*")
 	write.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -768,7 +703,6 @@ func main() {
 	http.HandleFunc("/load", loadData)
 	http.HandleFunc("/pay", retPay)
 	http.HandleFunc("/save", save)
-	http.HandleFunc("/register", regPes)
 	http.HandleFunc("/del", delete)
 	http.HandleFunc("/upd", updateMsg)
 	http.HandleFunc("/", welc)
