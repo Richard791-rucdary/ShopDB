@@ -360,11 +360,11 @@ func retPay(write http.ResponseWriter, read *http.Request) {
 	}
 
 	prices := []Price{
-		{274.99, "1 week", 7},
-		{996.99, "1 month", 30},
-		{5498.99, "6 months", 181},
-		{10257.99, "1 year", 365},
-		{19919.99, "2 years", 732},
+		{347.99, "1 week", 7},
+		{1207.99, "1 month", 30},
+		{7079.99, "6 months", 181},
+		{13837.99, "1 year", 365},
+		{25075.99, "2 years", 732},
 	}
 
 	write.Header().Set("Content-Type", "application/json")
